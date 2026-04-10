@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OTP মনিটর বট - আপডেটেড ইউজার এজেন্ট ও কুকি সহ
+OTP মনিটর বট - সর্বশেষ কুকি ও সেশন আপডেটেড
 """
 
 import asyncio
@@ -10,6 +10,7 @@ import logging
 import re
 import os
 import sys
+import random
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
 
@@ -21,18 +22,18 @@ except ImportError:
     print("❌ python-telegram-bot ইনস্টল নেই। রান করুন: pip install python-telegram-bot")
     sys.exit(1)
 
-# ============= কনফিগারেশন সেকশন (আপডেটেড) =============
+# ============= কনফিগারেশন সেকশন (সর্বশেষ আপডেট) =============
 class Config:
-    """সব কনফিগারেশন এখানে - সর্বশেষ আপডেট"""
+    """সব কনফিগারেশন এখানে - সর্বশেষ আপডেটেড"""
     
     # টেলিগ্রাম কনফিগ
     TELEGRAM_BOT_TOKEN = "5929619535:AAGsgoN5pYczsKWOGqVWTrslk0qJr2jJVYA"
     GROUP_CHAT_ID = "-1001153782407"
     
-    # প্যানেল কনফিগ - আপডেটেড
+    # প্যানেল কনফিগ - ✅ সর্বশেষ আপডেট
     PANEL_URL = "http://217.182.195.194/ints/agent/res/data_smscdr.php"
-    PANEL_SESSKEY = "Q05RR0FSUEFCTw=="
-    PANEL_COOKIE = "50febb14d463e2c22c150e565816271d"
+    PANEL_SESSKEY = "Q05RR0FSUEFCUA=="  # ✅ নতুন আপডেটেড sesskey
+    PANEL_COOKIE = "eb5ed2542e6b5e42c05f867c7c6dd1cd"  # ✅ নতুন আপডেটেড PHPSESSID
     PANEL_REFERER = "http://217.182.195.194/ints/agent/SMSCDRStats"
     PANEL_HOST = "217.182.195.194"
     
@@ -213,6 +214,7 @@ class LiveOTPBot:
 ✅ বট সক্রিয়
 📡 লাইভ মনিটরিং
 🌍 {len(COUNTRY_MAP)}+ দেশ
+🔑 সেশন: {Config.PANEL_SESSKEY[:8]}...
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ━━━━━━━━━━━━━━━━━━━
 """
@@ -225,35 +227,31 @@ class LiveOTPBot:
         logger.info("✅ স্টার্ট মেসেজ পাঠানো হয়েছে")
     
     async def fetch_sms(self) -> List:
-        """সর্বশেষ SMS ফেচ - আপডেটেড ইউজার এজেন্ট ও কুকি সহ"""
+        """সর্বশেষ SMS ফেচ - সর্বশেষ কুকি ও ইউজার এজেন্ট সহ"""
         
-        # ✅ আপডেটেড ইউজার এজেন্ট (একাধিক, রোটেট করতে পারে)
+        # ✅ আপডেটেড ইউজার এজেন্ট (Firefox Android)
         user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "Mozilla/5.0 (Android 13; Mobile; rv:147.0) Gecko/147.0 Firefox/147.0",
+            "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+            "Mozilla/5.0 (Android 12; Mobile; rv:146.0) Gecko/146.0 Firefox/146.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         ]
         
-        # র্যান্ডম ইউজার এজেন্ট সিলেক্ট করুন
-        import random
         selected_ua = random.choice(user_agents)
         
+        # ✅ আপডেটেড হেডার (আপনার দেওয়া রিকোয়েস্ট অনুযায়ী)
         headers = {
             "Host": Config.PANEL_HOST,
-            "Connection": "keep-alive",
-            "X-Requested-With": "XMLHttpRequest",
-            "User-Agent": selected_ua,  # ✅ আপডেটেড ইউজার এজেন্ট
+            "User-Agent": selected_ua,
             "Accept": "application/json, text/javascript, */*; q=0.01",
-            "DNT": "1",
-            "Referer": Config.PANEL_REFERER,
+            "Accept-Language": "en-AZ,it-SI;q=0.9,es-BO;q=0.8,ar-IL;q=0.7",
             "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-US,en;q=0.9,en-GB;q=0.8,en-AZ;q=0.7",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
-            "Cookie": f"PHPSESSID={Config.PANEL_COOKIE}"  # ✅ আপডেটেড কুকি
+            "X-Requested-With": "XMLHttpRequest",
+            "Connection": "keep-alive",
+            "Referer": Config.PANEL_REFERER,
+            "Cookie": f"PHPSESSID={Config.PANEL_COOKIE}",  # ✅ নতুন কুকি
+            "DNT": "1"
         }
         
         today = datetime.now().strftime("%Y-%m-%d")
@@ -271,7 +269,7 @@ class LiveOTPBot:
             "fgnumber": "",
             "fgcli": "",
             "fg": "0",
-            "sesskey": Config.PANEL_SESSKEY,
+            "sesskey": Config.PANEL_SESSKEY,  # ✅ নতুন sesskey
             "sEcho": "1",
             "iColumns": "9",
             "sColumns": ",,,,,,,,",
@@ -421,11 +419,11 @@ class LiveOTPBot:
     async def run(self):
         """বট রান"""
         print("=" * 55)
-        print("🚀 OTP মনিটর বট চালু হয়েছে (আপডেটেড)")
+        print("🚀 OTP মনিটর বট চালু হয়েছে (সর্বশেষ আপডেট)")
         print(f"📢 মেইন চ্যানেল: {Config.MAIN_CHANNEL_LINK}")
         print(f"🤖 নাম্বার বট: {Config.NUMBER_BOT_LINK}")
-        print(f"🔑 সেশন: {Config.PANEL_SESSKEY[:10]}...")
-        print(f"🍪 কুকি: {Config.PANEL_COOKIE[:15]}...")
+        print(f"🔑 Sesskey: {Config.PANEL_SESSKEY}")
+        print(f"🍪 Cookie: {Config.PANEL_COOKIE}")
         print("=" * 55)
         
         await self.monitor()
