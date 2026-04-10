@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OTP মনিটর বট - সম্পূর্ণ আপডেটেড (সর্বশেষ কুকি ও সেশন সহ)
+OTP মনিটর বট - আপডেটেড ইউজার এজেন্ট ও কুকি সহ
 """
 
 import asyncio
@@ -12,12 +12,11 @@ import os
 import sys
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
-from collections import OrderedDict
 
 # টেলিগ্রাম ইম্পোর্ট
 try:
     from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.error import TelegramError, TimedOut, NetworkError
+    from telegram.error import TelegramError
 except ImportError:
     print("❌ python-telegram-bot ইনস্টল নেই। রান করুন: pip install python-telegram-bot")
     sys.exit(1)
@@ -30,10 +29,10 @@ class Config:
     TELEGRAM_BOT_TOKEN = "5929619535:AAGsgoN5pYczsKWOGqVWTrslk0qJr2jJVYA"
     GROUP_CHAT_ID = "-1001153782407"
     
-    # প্যানেল কনফিগ - ✅ আপডেটেড sesskey
+    # প্যানেল কনফিগ - আপডেটেড
     PANEL_URL = "http://217.182.195.194/ints/agent/res/data_smscdr.php"
-    PANEL_SESSKEY = "Q05RR0FSUEFCTw=="  # ✅ নতুন আপডেটেড sesskey
-    PANEL_COOKIE = "50febb14d463e2c22c150e565816271d"  # ✅ PHPSESSID
+    PANEL_SESSKEY = "Q05RR0FSUEFCTw=="
+    PANEL_COOKIE = "50febb14d463e2c22c150e565816271d"
     PANEL_REFERER = "http://217.182.195.194/ints/agent/SMSCDRStats"
     PANEL_HOST = "217.182.195.194"
     
@@ -42,26 +41,23 @@ class Config:
     NUMBER_BOT_LINK = "https://t.me/Updateotpnew_bot"
     
     # মনিটরিং সেটিংস
-    CHECK_INTERVAL = 2  # সেকেন্ড
-    FETCH_LIMIT = 50    # একবারে কত রেকর্ড
-    REQUEST_TIMEOUT = 10  # সেকেন্ড
+    CHECK_INTERVAL = 2
+    FETCH_LIMIT = 50
+    REQUEST_TIMEOUT = 15
     
     # ফাইল স্টোরেজ
     PROCESSED_FILE = "processed_otps.json"
-    
-    # লগিং
-    LOG_LEVEL = logging.INFO
 
 
-# ============= লগিং সেটআপ =============
+# ============= লগিং =============
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
-    level=Config.LOG_LEVEL
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 
-# ============= কান্ট্রি ডাটাবেস (প্রধান দেশ) =============
+# ============= কান্ট্রি ডাটাবেস =============
 COUNTRY_MAP = {
     "880": {"flag": "🇧🇩", "name": "Bangladesh"},
     "91": {"flag": "🇮🇳", "name": "India"},
@@ -96,18 +92,10 @@ COUNTRY_MAP = {
     "61": {"flag": "🇦🇺", "name": "Australia"},
     "64": {"flag": "🇳🇿", "name": "New Zealand"},
     "27": {"flag": "🇿🇦", "name": "South Africa"},
-    "213": {"flag": "🇩🇿", "name": "Algeria"},
-    "212": {"flag": "🇲🇦", "name": "Morocco"},
-    "216": {"flag": "🇹🇳", "name": "Tunisia"},
-    "218": {"flag": "🇱🇾", "name": "Libya"},
-    "234": {"flag": "🇳🇬", "name": "Nigeria"},
-    "254": {"flag": "🇰🇪", "name": "Kenya"},
-    "256": {"flag": "🇺🇬", "name": "Uganda"},
 }
 
 
 def get_country_from_phone(phone_number: str) -> Dict:
-    """ফোন নম্বর থেকে দেশ বের করে"""
     digits = re.sub(r'\D', '', str(phone_number))
     for length in range(4, 1, -1):
         code = digits[:length]
@@ -117,7 +105,6 @@ def get_country_from_phone(phone_number: str) -> Dict:
 
 
 def extract_otp(text: str) -> Optional[Dict]:
-    """OTP এক্সট্রাক্ট - হ্যাশ ট্যাগ, ড্যাশ, সংখ্যা"""
     patterns = [
         (r'#\s*(\d{6,10})', 'hashtag'),
         (r'\b(\d{3}-\d{3})\b', 'dash'),
@@ -138,15 +125,13 @@ def extract_otp(text: str) -> Optional[Dict]:
             if '#' in pattern:
                 code = f"#{code}"
             clean = re.sub(r'\D', '', code)
-            if len(clean) == 4:
-                if 2020 <= int(clean) <= 2030:
-                    continue
+            if len(clean) == 4 and 2020 <= int(clean) <= 2030:
+                continue
             return {'code': code, 'type': name, 'clean': clean}
     return None
 
 
 def extract_platform(text: str, raw: str = "") -> str:
-    """প্ল্যাটফর্ম ডিটেক্ট"""
     if raw and raw.upper() != "UNKNOWN":
         return raw.upper()
     
@@ -159,7 +144,6 @@ def extract_platform(text: str, raw: str = "") -> str:
 
 
 def format_message(phone: str, platform: str, otp_info: Dict, country: Dict) -> str:
-    """মেসেজ ফরম্যাট"""
     flag = country['flag']
     country_name = country['name']
     
@@ -198,7 +182,6 @@ class LiveOTPBot:
         self.load_processed()
     
     def load_processed(self):
-        """প্রসেসড OTP লোড"""
         try:
             with open(Config.PROCESSED_FILE, 'r') as f:
                 data = json.load(f)
@@ -209,7 +192,6 @@ class LiveOTPBot:
             self.processed = set()
     
     def save_processed(self, otp_id: str):
-        """প্রসেসড OTP সেভ"""
         self.processed.add(otp_id)
         if len(self.processed) > 1000:
             self.processed = set(list(self.processed)[-500:])
@@ -219,21 +201,18 @@ class LiveOTPBot:
             json.dump(data, f)
     
     def create_keyboard(self):
-        """বাটাম তৈরি"""
         return InlineKeyboardMarkup([[
             InlineKeyboardButton("📢 Main Channel", url=Config.MAIN_CHANNEL_LINK),
             InlineKeyboardButton("🤖 Number Bot", url=Config.NUMBER_BOT_LINK)
         ]])
     
     async def send_start_message(self):
-        """স্টার্ট মেসেজ"""
         msg = f"""
 🚀 **live Otp Bot Start** 🚀
 ━━━━━━━━━━━━━━━━━━━
 ✅ বট সক্রিয়
 📡 লাইভ মনিটরিং
 🌍 {len(COUNTRY_MAP)}+ দেশ
-🔢 হ্যাশ ট্যাগ, ড্যাশ, 4-6 ডিজিট
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ━━━━━━━━━━━━━━━━━━━
 """
@@ -246,18 +225,35 @@ class LiveOTPBot:
         logger.info("✅ স্টার্ট মেসেজ পাঠানো হয়েছে")
     
     async def fetch_sms(self) -> List:
-        """সর্বশেষ SMS ফেচ - আপডেটেড হেডার সহ"""
+        """সর্বশেষ SMS ফেচ - আপডেটেড ইউজার এজেন্ট ও কুকি সহ"""
+        
+        # ✅ আপডেটেড ইউজার এজেন্ট (একাধিক, রোটেট করতে পারে)
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        ]
+        
+        # র্যান্ডম ইউজার এজেন্ট সিলেক্ট করুন
+        import random
+        selected_ua = random.choice(user_agents)
+        
         headers = {
             "Host": Config.PANEL_HOST,
             "Connection": "keep-alive",
             "X-Requested-With": "XMLHttpRequest",
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+            "User-Agent": selected_ua,  # ✅ আপডেটেড ইউজার এজেন্ট
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "DNT": "1",
             "Referer": Config.PANEL_REFERER,
             "Accept-Encoding": "gzip, deflate",
-            "Accept-Language": "en-AZ,en;q=0.9,it-SI;q=0.8,it;q=0.7,es-BO;q=0.6,es;q=0.5,ar-IL;q=0.4,ar;q=0.3",
-            "Cookie": f"PHPSESSID={Config.PANEL_COOKIE}"
+            "Accept-Language": "en-US,en;q=0.9,en-GB;q=0.8,en-AZ;q=0.7",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Cookie": f"PHPSESSID={Config.PANEL_COOKIE}"  # ✅ আপডেটেড কুকি
         }
         
         today = datetime.now().strftime("%Y-%m-%d")
@@ -275,7 +271,7 @@ class LiveOTPBot:
             "fgnumber": "",
             "fgcli": "",
             "fg": "0",
-            "sesskey": Config.PANEL_SESSKEY,  # ✅ আপডেটেড
+            "sesskey": Config.PANEL_SESSKEY,
             "sEcho": "1",
             "iColumns": "9",
             "sColumns": ",,,,,,,,",
@@ -340,7 +336,8 @@ class LiveOTPBot:
                     Config.PANEL_URL,
                     headers=headers,
                     params=params,
-                    timeout=Config.REQUEST_TIMEOUT
+                    timeout=Config.REQUEST_TIMEOUT,
+                    ssl=False
                 ) as resp:
                     if resp.status == 200:
                         text = await resp.text()
@@ -351,7 +348,7 @@ class LiveOTPBot:
                         logger.warning(f"HTTP {resp.status}")
                     return []
         except asyncio.TimeoutError:
-            logger.warning("⏱️ টাইমআউট")
+            logger.warning("⏱️ টাইমআউট - আবার চেষ্টা")
             return []
         except aiohttp.ClientError as e:
             logger.error(f"🌐 ক্লায়েন্ট এরর: {e}")
@@ -423,12 +420,13 @@ class LiveOTPBot:
     
     async def run(self):
         """বট রান"""
-        print("=" * 50)
-        print("🚀 OTP মনিটর বট চালু হয়েছে")
+        print("=" * 55)
+        print("🚀 OTP মনিটর বট চালু হয়েছে (আপডেটেড)")
         print(f"📢 মেইন চ্যানেল: {Config.MAIN_CHANNEL_LINK}")
         print(f"🤖 নাম্বার বট: {Config.NUMBER_BOT_LINK}")
         print(f"🔑 সেশন: {Config.PANEL_SESSKEY[:10]}...")
-        print("=" * 50)
+        print(f"🍪 কুকি: {Config.PANEL_COOKIE[:15]}...")
+        print("=" * 55)
         
         await self.monitor()
 
